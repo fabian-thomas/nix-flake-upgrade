@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [--update-lock-file] [--result-dir <path>] [--os] [--home] [--push] <COMMAND> [<FLAKE_DIR>] [-- <EXTRA_ARGS>...]
+
+Commands:
+  switch  Build and activate the new configuration, and make it the boot default
+  boot    Build the new configuration and make it the boot default
+  test    Build and activate the new configuration
+  build   Build the new configuration
+
+Options:
+  --update-lock-file  Bump flake.lock and commit
+  --os                Build NixOS
+  --home              Build Home-Manager
+  --push              git pull --rebase && git push
+  --result-dir <path> Write outputs into <path>
+  -- <EXTRA_ARGS>     Passed to nix build
+EOF
+  exit 1
+}
+
+RESULT_DIR=
+FLAKE_DIR=.
+CMD=
+UPDATE_LOCK=false
+DO_OS=false
+DO_HOME=false
+DO_PUSH=false
+EXTRA_ARGS=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --)
+    shift
+    EXTRA_ARGS=("$@")
+    break
+    ;;
+  --update-lock-file)
+    UPDATE_LOCK=true
+    shift
+    ;;
+  --os)
+    DO_OS=true
+    shift
+    ;;
+  --home)
+    DO_HOME=true
+    shift
+    ;;
+  --push)
+    DO_PUSH=true
+    shift
+    ;;
+  --result-dir)
+    RESULT_DIR="$2"
+    shift 2
+    ;;
+  switch | boot | test | build)
+    if [[ -z "$CMD" ]]; then
+      CMD="$1"
+      shift
+    else
+      echo "Error: multiple commands specified: $CMD and $1" >&2
+      usage
+    fi
+    ;;
+  --help)
+    usage
+    ;;
+  -*)
+    echo "Unknown option: $1" >&2
+    usage
+    ;;
+  *)
+    if [[ -n "$CMD" && "$FLAKE_DIR" == "." ]]; then
+      FLAKE_DIR="$1"
+      shift
+    else
+      echo "Unexpected argument: $1" >&2
+      usage
+    fi
+    ;;
+  esac
+done
+
+if [[ -z "$CMD" ]]; then
+  echo "Error: command is required." >&2
+  usage
+fi
+
+# Default to both if neither specified
+if ! $DO_OS && ! $DO_HOME; then
+  DO_OS=true
+  DO_HOME=true
+fi
+
+cd "$FLAKE_DIR"
+
+if $UPDATE_LOCK; then
+  PREV_COMMIT_HASH=$(git rev-parse HEAD)
+
+  echo "Updating flake.lock..."
+  nix flake update --commit-lock-file
+
+  LOCK_COMMIT_HASH=$(git rev-parse HEAD)
+  LOCK_BODY=$(git log -1 --pretty=%b "$LOCK_COMMIT_HASH")
+
+  if [[ "$PREV_COMMIT_HASH" = "$LOCK_COMMIT_HASH" ]]; then
+    echo "flake.lock did not change."
+  else
+    # Remove the commit as we recreate it below
+    git reset --soft HEAD~1
+  fi
+fi
+
+if [ -z "$RESULT_DIR" ]; then
+  RESULT_DIR=$(mktemp -d)
+  trap 'rm -rf "$RESULT_DIR"' EXIT
+fi
+
+if $DO_OS; then
+  echo "nh os $CMD..."
+  nh os "$CMD" "$FLAKE_DIR" --out-link "$RESULT_DIR/os-result" -- "${EXTRA_ARGS[@]}"
+  OS_CURRENT=$(realpath /run/current-system)
+  OS_NEW=$(realpath "$RESULT_DIR/os-result")
+fi
+
+if $DO_HOME; then
+  echo "nh home $CMD..."
+  nh home "$CMD" "$FLAKE_DIR" --out-link "$RESULT_DIR/home-result" -- "${EXTRA_ARGS[@]}"
+  HOME_CURRENT=$(realpath ~/.nix-profile)
+  HOME_NEW=$(realpath "$RESULT_DIR/home-result")
+fi
+
+if $UPDATE_LOCK && [[ "$PREV_COMMIT_HASH" != "$LOCK_COMMIT_HASH" ]]; then
+  PREFIX=$(git rev-parse --show-prefix)
+  if [[ -n "$PREFIX" ]]; then
+    REL_PATH="${PREFIX%/}/flake.lock"
+  else
+    REL_PATH="flake.lock"
+  fi
+
+  labels=("$(hostname)")
+  if [ "$DO_OS" = true ]; then
+    labels+=("os")
+  fi
+  if [ "$DO_HOME" = true ]; then
+    labels+=("home")
+  fi
+  TITLE="chore($(
+    IFS=,
+    echo "${labels[*]}"
+  )): update ${REL_PATH}"
+
+  echo "Generating diffs..."
+  if $DO_OS; then
+    nvd diff "$OS_CURRENT" "$OS_NEW" >"$RESULT_DIR/os.diff"
+  fi
+  if $DO_HOME; then
+    nvd diff "$HOME_CURRENT" "$HOME_NEW" >"$RESULT_DIR/home.diff"
+  fi
+
+  echo "Amending lock-update commit with configuration diffs..."
+  MSGFILE="$RESULT_DIR/msgfile"
+  {
+    echo "$TITLE"
+    echo
+    echo "## Flake lock changes"
+    echo "$LOCK_BODY"
+    if $DO_OS; then
+      echo
+      echo "## System closure diff"
+      cat "$RESULT_DIR/os.diff"
+    fi
+    if $DO_HOME; then
+      echo
+      echo "## Home-manager closure diff"
+      cat "$RESULT_DIR/home.diff"
+    fi
+  } >"$MSGFILE"
+
+  # Commit only the lock file update
+  git add flake.lock
+  git commit --only flake.lock --file "$MSGFILE"
+fi
+
+if $DO_PUSH; then
+  echo "Pushing changes..."
+  set +e
+  success=0
+  for i in $(seq 1 5); do
+    git pull --rebase
+    if git push; then
+      echo "Push succeeded."
+      success=1
+      break
+    else
+      echo "Push failed (attempt $i), retrying..."
+      sleep 1
+    fi
+  done
+  set -e
+  if [[ $success -ne 1 ]]; then
+    echo "Failed to push after 5 attempts." >&2
+    exit 1
+  fi
+fi
