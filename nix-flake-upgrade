@@ -3,13 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--update-lock-file] [--result-dir <path>] [--os] [--home] [--push] <COMMAND> [<FLAKE_DIR>] [-- <EXTRA_ARGS>...]
-
-Commands:
-  switch  Build and activate the new configuration, and make it the boot default
-  boot    Build the new configuration and make it the boot default
-  test    Build and activate the new configuration
-  build   Build the new configuration
+Usage: $(basename "$0") [--update-lock-file] [--result-dir <path>] [--os] [--home] [--push] [<FLAKE_DIR>] [-- <EXTRA_ARGS>...]
 
 Options:
   --update-lock-file  Bump flake.lock and commit
@@ -24,7 +18,6 @@ EOF
 
 RESULT_DIR=
 FLAKE_DIR=.
-CMD=
 UPDATE_LOCK=false
 DO_OS=false
 DO_HOME=false
@@ -58,15 +51,6 @@ while [[ $# -gt 0 ]]; do
     RESULT_DIR="$2"
     shift 2
     ;;
-  switch | boot | test | build)
-    if [[ -z "$CMD" ]]; then
-      CMD="$1"
-      shift
-    else
-      echo "Error: multiple commands specified: $CMD and $1" >&2
-      usage
-    fi
-    ;;
   --help)
     usage
     ;;
@@ -75,7 +59,7 @@ while [[ $# -gt 0 ]]; do
     usage
     ;;
   *)
-    if [[ -n "$CMD" && "$FLAKE_DIR" == "." ]]; then
+    if [[ "$FLAKE_DIR" == "." ]]; then
       FLAKE_DIR="$1"
       shift
     else
@@ -85,11 +69,6 @@ while [[ $# -gt 0 ]]; do
     ;;
   esac
 done
-
-if [[ -z "$CMD" ]]; then
-  echo "Error: command is required." >&2
-  usage
-fi
 
 # Default to both if neither specified
 if ! $DO_OS && ! $DO_HOME; then
@@ -122,15 +101,15 @@ if [ -z "$RESULT_DIR" ]; then
 fi
 
 if $DO_OS; then
-  echo "nh os $CMD..."
-  nh os "$CMD" "$FLAKE_DIR" --out-link "$RESULT_DIR/os-result" -- "${EXTRA_ARGS[@]}"
+  echo "nh os build..."
+  nh os build "$FLAKE_DIR" --out-link "$RESULT_DIR/os-result" -- "${EXTRA_ARGS[@]}"
   OS_CURRENT=$(realpath /run/current-system)
   OS_NEW=$(realpath "$RESULT_DIR/os-result")
 fi
 
 if $DO_HOME; then
-  echo "nh home $CMD..."
-  nh home "$CMD" "$FLAKE_DIR" --out-link "$RESULT_DIR/home-result" -- "${EXTRA_ARGS[@]}"
+  echo "nh home build..."
+  nh home build "$FLAKE_DIR" --out-link "$RESULT_DIR/home-result" -- "${EXTRA_ARGS[@]}"
   HOME_CURRENT=$(realpath ~/.nix-profile)
   HOME_NEW=$(realpath "$RESULT_DIR/home-result")
 fi

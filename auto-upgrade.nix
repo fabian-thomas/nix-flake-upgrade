@@ -45,12 +45,12 @@ in
         '';
       };
 
-      path = lib.mkOption {
+      flake-path = lib.mkOption {
         type = lib.types.str;
         example = "/home/your-user/my-flake-based-nixos-config/";
         description = ''
-          Path to the directory that holds your flake.nix in
-          the repository belonging to the user.
+          Path to the flake of the NixOS configuration to build.
+          Disables the option {option}`system.autoUpgrade.channel`.
         '';
       };
 
@@ -58,24 +58,15 @@ in
         type = lib.types.str;
         example = "your-user";
         description = ''
-          The user to run the unit as. Use the user that the
+          The user to run the nix-flake-upgrade unit as. Use the user that the
           repository folder belongs to.
-        '';
-      };
-
-      nix-flake-upgrade-flags-once = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
-        default = [ ];
-        example = [ "--update-lock-file" "--push" ];
-        description = ''
-          Flags passed to {command}`nix-flake-upgrade`.
         '';
       };
 
       nix-flake-upgrade-flags = lib.mkOption {
         type = lib.types.listOf lib.types.str;
-        default = [ "--os" ];
-        example = [ "--update-lock-file" "--os" "--push" ];
+        default = [ "--update-lock-file" "--os" ];
+        example = [ "--update-lock-file" "--push" "--os" ];
         description = ''
           Flags passed to {command}`nix-flake-upgrade`.
         '';
@@ -93,10 +84,6 @@ in
         ];
         description = ''
           Any additional flags passed to {command}`nixos-rebuild`.
-
-          If you are using flakes and use a local repo you can add
-          {command}`[ "--update-input" "nixpkgs" "--commit-lock-file" ]`
-          to update nixpkgs.
         '';
       };
 
@@ -200,8 +187,8 @@ in
 
   config = lib.mkIf cfg.enable {
 
-    systemd.services.nixos-upgrade = {
-      description = "NixOS Upgrade";
+    systemd.services.flake-upgrade = {
+      description     = "Upgrade NixOS Flake";
 
       restartIfChanged = false;
       unitConfig.X-StopOnRemoval = false;
@@ -209,12 +196,27 @@ in
       serviceConfig.Type = "oneshot";
       serviceConfig.User = cfg.user;
 
+      script = ''
+          ${nix-flake-upgrade}/bin/nix-flake-upgrade ${toString (cfg.nix-flake-upgrade-flags)} ${cfg.flake-path} -- ${toString cfg.flags}
+        '';
+
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
+    };
+
+    systemd.services.nixos-upgrade = {
+      description = "NixOS Upgrade";
+
+      restartIfChanged = false;
+      unitConfig.X-StopOnRemoval = false;
+
+      serviceConfig.Type = "oneshot";
+
       environment =
         config.nix.envVars
         // {
           inherit (config.environment.sessionVariables) NIX_PATH;
-          # TODO: find other way to switch to user env
-          HOME = "/home/${cfg.user}";
+          HOME = "/root";
         }
         // config.networking.proxy.envVars;
 
@@ -226,24 +228,19 @@ in
         gitMinimal
         config.nix.package.out
         config.programs.ssh.package
-        # Needed for nh
-        sudo
-        nettools
       ];
 
       script =
         let
           nixos-rebuild = "${config.system.build.nixos-rebuild}/bin/nixos-rebuild";
-          nix-flake-upgrade-bin = "${nix-flake-upgrade}/bin/nix-flake-upgrade";
           date = "${pkgs.coreutils}/bin/date";
           readlink = "${pkgs.coreutils}/bin/readlink";
           shutdown = "${config.systemd.package}/bin/shutdown";
+          flags = cfg.flags ++ [ "--flake ${cfg.flake-path}" ];
         in
         if cfg.allowReboot then
           ''
-            cd ${cfg.path} || exit 1
-
-            ${nix-flake-upgrade-bin} ${toString (cfg.nix-flake-upgrade-flags ++ cfg.nix-flake-upgrade-flags-once)} boot -- ${toString (cfg.flags)}
+            ${nixos-rebuild} boot ${toString (flags)}
             booted="$(${readlink} /run/booted-system/{initrd,kernel,kernel-modules})"
             built="$(${readlink} /nix/var/nix/profiles/system/{initrd,kernel,kernel-modules})"
 
@@ -273,7 +270,7 @@ in
             ''}
 
             if [ "''${booted}" = "''${built}" ]; then
-              ${nix-flake-upgrade-bin} ${toString (cfg.nix-flake-upgrade-flags)} ${cfg.operation} -- ${toString (cfg.flags)}
+              ${nixos-rebuild} ${cfg.operation} ${toString flags}
             ${lib.optionalString (cfg.rebootWindow != null) ''
               elif [ "''${do_reboot}" != true ]; then
                 echo "Outside of configured reboot window, skipping."
@@ -284,12 +281,13 @@ in
           ''
         else
           ''
-            ${nix-flake-upgrade-bin} ${toString (cfg.nix-flake-upgrade-flags)} ${cfg.operation} -- ${toString (cfg.flags)}
+            ${nixos-rebuild} ${cfg.operation} ${toString (flags)}
           '';
 
       startAt = cfg.dates;
 
-      after = [ "network-online.target" ];
+      requires = [ "flake-upgrade.service" ];
+      after = [ "network-online.target" "flake-upgrade.service" ];
       wants = [ "network-online.target" ];
     };
 
@@ -301,4 +299,5 @@ in
       };
     };
   };
+
 }
