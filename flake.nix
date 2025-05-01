@@ -12,7 +12,11 @@
       pkgs     = import nixpkgs { inherit system; };
       nix-flake-upgrade = pkgs.writeShellApplication {
         name = "nix-flake-upgrade";
-        runtimeInputs = with pkgs; [ nix gitMinimal nh nvd ];
+        runtimeInputs = with pkgs; [
+          gitMinimal openssh nix nh nvd
+          # for hostname
+          nettools
+        ];
         text = builtins.readFile ./nix-flake-upgrade;
       };
     in
