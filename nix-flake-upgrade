@@ -110,7 +110,7 @@ fi
 if $DO_HOME; then
   echo "nh home build..."
   nh home build "$FLAKE_DIR" --out-link "$RESULT_DIR/home-result" -- "${EXTRA_ARGS[@]}"
-  HOME_CURRENT=$(realpath ~/.nix-profile)
+  HOME_CURRENT=$(realpath "${XDG_STATE_HOME:-$HOME/.local/state}/nix/profiles/profile")
   HOME_NEW=$(realpath "$RESULT_DIR/home-result")
 fi
 
