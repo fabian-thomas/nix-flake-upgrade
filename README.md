@@ -2,27 +2,36 @@
 
 Git commits look like this:
 ```md
-chore(thinkpad,os): update flake.lock
+commit d768e16bc74a6ac146b510c093508c3a3cf13530
+Author: my-server[bot] <my-server[bot]>
+Commit: Fabian Thomas <fabian@fabianthomas.de>
 
-## Flake lock changes
-Flake lock file updates:
+    chore(my-server,os): update nix/machines/my-server/flake.lock
 
-• Updated input 'child':
-    'path:/home/fabian/desktop/flake-update-test/child?lastModified=1745778931&narHash=sha256-i%2Bl6bo9KOKCrnBoAKtAJ46kpX61pamb4MAk2UwMcbvE%3D' (2025-04-27)
-  → 'path:/home/fabian/desktop/flake-update-test/child?lastModified=1745781832&narHash=sha256-lzFCaTPSx8UcCJQBNHtdgtbQNnRk1XBrIfcV7SaalZg%3D' (2025-04-27)
+    ## Flake lock changes
+    Flake lock file updates:
 
-## System closure diff
-<<< /nix/store/fsjsa2012s442gcai1vn3wz1qhn60f6r-nixos-system-thinkpad-24.11pre-git
->>> /nix/store/z3am2v7pp30m58j8gnih71rj60s30irh-nixos-system-nixos-24.11.20250424.5630cf1
-Version changes:
-[C*]  #001  acl                     2.3.2 x3, 2.3.2-bin, 2.3.2-doc, 2.3.2-man -> 2.3.2, 2.3.2-bin, 2.3.2-doc, 2.3.2-man
-[C*]  #002  attr                    2.5.2 x3, 2.5.2-bin, 2.5.2-doc, 2.5.2-man -> 2.5.2, 2.5.2-bin, 2.5.2-doc, 2.5.2-man
-[C.]  #003  audit                   4.0 x2, 4.0-bin, 4.0.3-lib -> 4.0, 4.0-bin
+    • Updated input 'nixpkgs':
+        'github:NixOS/nixpkgs/bf3287dac860542719fe7554e21e686108716879?narHash=sha256-kwaaguGkAqTZ1oK0yXeQ3ayYjs8u/W7eEfrFpFfIDFA%3D' (2025-05-02)
+      → 'github:NixOS/nixpkgs/537ee98218704e21ea465251de512ab6bbb9012e?narHash=sha256-5odz%2BNZszRya//Zd0P8h%2BsIwOnV35qJi%2B73f4I%2Biv1M%3D' (2025-05-03)
+    • Updated input 'nixpkgs-unstable':
+        'github:NixOS/nixpkgs/7a2622e2c0dbad5c4493cb268aba12896e28b008?narHash=sha256-MHmBH2rS8KkRRdoU/feC/dKbdlMkcNkB5mwkuipVHeQ%3D' (2025-05-03)
+      → 'github:NixOS/nixpkgs/979daf34c8cacebcd917d540070b52a3c2b9b16e?narHash=sha256-uKCfuDs7ZM3QpCE/jnfubTg459CnKnJG/LwqEVEdEiw%3D' (2025-05-04)
+
+    ## System closure diff
+    <<< /nix/store/pfhj5ryyar39cbn2379bp522r0aqzlw6-nixos-system-my-server-24.11.20250502.bf3287d
+    >>> /nix/store/r9pv9ld4flyzfbqk1iljjb2jdb99bw68-nixos-system-my-server-24.11.20250503.537ee98
+    Version changes:
+    [U*]  #1  cpupower                6.6.88 -> 6.6.89
+    [U.]  #2  initrd-linux            6.6.88 -> 6.6.89
+    [U.]  #3  linux                   6.6.88, 6.6.88-modules, 6.6.88-modules-shrunk -> 6.6.89, 6.6.89-modules, 6.6.89-modules-shrunk
+    [U.]  #4  nixos-system-my-server  24.11.20250502.bf3287d -> 24.11.20250503.537ee98
+    Closure size: 810 -> 810 (26 paths added, 26 paths removed, delta +0, disk usage -5.3KiB).
 ```
 
 ## Features
 
-- Update `flake.lock` with nicer commit messages.
+- Update `flake.lock` with nicer commit messages (see above).
 - Supports NixOS (`--os`) and Home Manager (`--home`) configs.
 - Integrated Git workflow (`--push`) for pulling, rebasing, and pushing changes.
 - NixOS module for scheduled upgrades similar to `system.autoUpgrade`.
@@ -45,7 +54,7 @@ This unit updates `flake.lock` if the configuration builds successfully.
 Flake input:
 ```nix
 nix-flake-upgrade = {
-  url = "path:/home/fabian/nix-flake-upgrade";
+  url = "github:fabian-thomas/nix-flake-upgrade";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 ```

@@ -163,7 +163,7 @@ if $UPDATE_LOCK && [[ "$PREV_COMMIT_HASH" != "$LOCK_COMMIT_HASH" ]]; then
 
   # Commit only the lock file update
   git add flake.lock
-  git commit --only flake.lock --file "$MSGFILE"
+  git commit --author="$(hostname)[bot] <$(hostname)[bot]>" --only flake.lock --file "$MSGFILE"
 fi
 
 if $DO_PUSH; then
