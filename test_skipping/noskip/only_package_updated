@@ -1,0 +1,5 @@
+<<< /nix/store/3wzqja8famrj7hjp59p961gr6hhz175z-nixos-system-aries-24.11.20250515.ba8b70e
+>>> /nix/store/wvlvyb540cd464rpnw6nr2fvhj443ka5-nixos-system-aries-24.11.20250517.9b5ac7a
+Version changes:
+[U.]  #1  signalbackup-tools  20250511-1 -> 20250513-1
+Closure size: 1616 -> 1616 (21 paths added, 21 paths removed, delta +0, disk usage +399.3KiB).

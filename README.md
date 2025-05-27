@@ -35,6 +35,7 @@ Commit: Fabian Thomas <fabian@fabianthomas.de>
 - Supports NixOS (`--os`) and Home Manager (`--home`) configs.
 - Integrated Git workflow (`--push`) for pulling, rebasing, and pushing changes.
 - NixOS module for scheduled upgrades similar to `system.autoUpgrade`.
+- Commit only when NixOS configuration changed (`--os-only-when-changed`).
 
 ## Usage
 
@@ -74,7 +75,7 @@ Configuration:
     allowReboot = true;
     flake-dir = "/path/to/your/repo/nixos/my-machine";
     user = "your-user";
-    nix-flake-upgrade-flags = [ "--update-lock-file" "--push" "--os" ];
+    nix-flake-upgrade-flags = [ "--update-lock-file" "--push" "--os" "--os-only-when-changed" ];
   };
 }
 ```
@@ -87,12 +88,13 @@ nix-flake-upgrade [--update-lock-file] [--result-dir <path>] [--os] [--home] [--
 
 #### Options
 
-- `--update-lock-file`:  Bump flake.lock and commit
-- `--os`:                Build NixOS
-- `--home`:              Build Home-Manager
-- `--push`:              git pull --rebase && git push
-- `--result-dir <path>`: Write outputs into `<path>`
-- `-- <EXTRA_ARGS>`:     Passed to nix build
+- `--update-lock-file`:     Bump flake.lock and commit
+- `--os`:                   Build NixOS
+- `--home`:                 Build Home-Manager
+- `--push`:                 git pull --rebase && git push
+- `--os-only-when-changed`: Bump and commit flake.lock only when NixOS configuration changed
+- `--result-dir <path>`:    Write outputs into `<path>`
+- `-- <EXTRA_ARGS>`:        Passed to nix build
 
 #### Installation
 

@@ -1,0 +1,5 @@
+<<< /nix/store/wks8h86xgmslwfqzi4azidmjb5fngy3v-nixos-system-pisces-24.11.20250515.ba8b70e
+>>> /nix/store/jl9d0458pbv4gmn9kqrwkgsh9qnklxgs-nixos-system-pisces-24.11.20250517.9b5ac7a
+Version changes:
+[U.]  #1  nixos-system-pisces  24.11.20250515.ba8b70e -> 24.11.20250517.9b5ac7a
+Closure size: 812 -> 812 (17 paths added, 17 paths removed, delta +0, disk usage +395.3KiB).

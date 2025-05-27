@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+function check_skip() {
+    line_count=$(tail -n +3 "$1" | wc -l | awk '{print $1}')
+    if [ "$line_count" -eq 2 ] || ([ "$line_count" -eq 3 ] && tail -n +3 "$1" | grep -q nixos-system-); then
+        return 0
+    else
+        return 1
+    fi
+}
+
+for file in noskip/*; do
+    echo "Checking $file"
+    if check_skip "$file"; then
+        echo "Error on $file"
+        exit 1
+    fi
+done
+
+for file in skip/*; do
+    echo "Checking $file"
+    if ! check_skip "$file"; then
+        echo "Error on $file"
+        exit 1
+    fi
+done

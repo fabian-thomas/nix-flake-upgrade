@@ -14,6 +14,7 @@
         name = "nix-flake-upgrade";
         runtimeInputs = with pkgs; [
           gitMinimal openssh nix nh nvd
+          coreutils gawk gnugrep
           # for hostname
           nettools
         ];

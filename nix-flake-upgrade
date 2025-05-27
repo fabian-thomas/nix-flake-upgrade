@@ -22,6 +22,7 @@ UPDATE_LOCK=false
 DO_OS=false
 DO_HOME=false
 DO_PUSH=false
+OS_ONLY_WHEN_CHANGED=false
 EXTRA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -45,6 +46,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --push)
     DO_PUSH=true
+    shift
+    ;;
+  --os-only-when-changed)
+    OS_ONLY_WHEN_CHANGED=true
     shift
     ;;
   --result-dir)
@@ -114,6 +119,17 @@ if $DO_HOME; then
   HOME_NEW=$(realpath "$RESULT_DIR/home-result")
 fi
 
+function check_os_change() {
+  # We could also look for string "No version or selection state changes." for the first case
+  # Best case nvd would have a json option though
+  line_count=$(tail -n +3 "$1" | wc -l | awk '{print $1}')
+  if [ "$line_count" -eq 2 ] || ([ "$line_count" -eq 3 ] && tail -n +3 "$1" | grep -q nixos-system-); then
+    return 0
+  else
+    return 1
+  fi
+}
+
 if $UPDATE_LOCK && [[ "$PREV_COMMIT_HASH" != "$LOCK_COMMIT_HASH" ]]; then
   PREFIX=$(git rev-parse --show-prefix)
   if [[ -n "$PREFIX" ]]; then
@@ -140,6 +156,14 @@ if $UPDATE_LOCK && [[ "$PREV_COMMIT_HASH" != "$LOCK_COMMIT_HASH" ]]; then
   fi
   if $DO_HOME; then
     nvd diff "$HOME_CURRENT" "$HOME_NEW" >"$RESULT_DIR/home.diff"
+  fi
+
+  # If nothing changed with the flake.lock bump skip this upgrade
+  if $OS_ONLY_WHEN_CHANGED && $DO_OS && ! $DO_HOME && check_os_change "$RESULT_DIR/os.diff"; then
+    echo "Skipping upgrade because NixOS configuration did not change... The diff:"
+    cat "$RESULT_DIR/os.diff"
+    git checkout HEAD -- flake.lock
+    exit 0
   fi
 
   echo "Amending lock-update commit with configuration diffs..."
