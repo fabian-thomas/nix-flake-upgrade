@@ -1,6 +1,6 @@
-`nix-flake-upgrade` module and script. Pretty much `system.autoUpgrade` but with nicer commits for `flake.lock` changes.
+`nix-flake-upgrade` module and script. Pretty much `system.autoUpgrade` but with additional metadata added to Git Notes for `flake.lock` changes.
 
-Git commits look like this:
+Commits created with this tool look like this:
 ```md
 commit d768e16bc74a6ac146b510c093508c3a3cf13530
 Author: my-server[bot] <my-server[bot]>
@@ -8,7 +8,6 @@ Commit: Fabian Thomas <fabian@fabianthomas.de>
 
     chore(my-server,os): update nix/machines/my-server/flake.lock
 
-    ## Flake lock changes
     Flake lock file updates:
 
     • Updated input 'nixpkgs':
@@ -17,27 +16,42 @@ Commit: Fabian Thomas <fabian@fabianthomas.de>
     • Updated input 'nixpkgs-unstable':
         'github:NixOS/nixpkgs/7a2622e2c0dbad5c4493cb268aba12896e28b008?narHash=sha256-MHmBH2rS8KkRRdoU/feC/dKbdlMkcNkB5mwkuipVHeQ%3D' (2025-05-03)
       → 'github:NixOS/nixpkgs/979daf34c8cacebcd917d540070b52a3c2b9b16e?narHash=sha256-uKCfuDs7ZM3QpCE/jnfubTg459CnKnJG/LwqEVEdEiw%3D' (2025-05-04)
+```
 
-    ## System closure diff
-    <<< /nix/store/pfhj5ryyar39cbn2379bp522r0aqzlw6-nixos-system-my-server-24.11.20250502.bf3287d
-    >>> /nix/store/r9pv9ld4flyzfbqk1iljjb2jdb99bw68-nixos-system-my-server-24.11.20250503.537ee98
-    Version changes:
-    [U*]  #1  cpupower                6.6.88 -> 6.6.89
-    [U.]  #2  initrd-linux            6.6.88 -> 6.6.89
-    [U.]  #3  linux                   6.6.88, 6.6.88-modules, 6.6.88-modules-shrunk -> 6.6.89, 6.6.89-modules, 6.6.89-modules-shrunk
-    [U.]  #4  nixos-system-my-server  24.11.20250502.bf3287d -> 24.11.20250503.537ee98
-    Closure size: 810 -> 810 (26 paths added, 26 paths removed, delta +0, disk usage -5.3KiB).
+Notes added to each commit look like this:
+```md
+# System closure diff
+<<< /nix/store/pfhj5ryyar39cbn2379bp522r0aqzlw6-nixos-system-my-server-24.11.20250502.bf3287d
+>>> /nix/store/r9pv9ld4flyzfbqk1iljjb2jdb99bw68-nixos-system-my-server-24.11.20250503.d768e16
+Version changes:
+[U*]  #1  cpupower                6.6.88 -> 6.6.89
+[U.]  #2  initrd-linux            6.6.88 -> 6.6.89
+[U.]  #3  linux                   6.6.88, 6.6.88-modules, 6.6.88-modules-shrunk -> 6.6.89, 6.6.89-modules, 6.6.89-modules-shrunk
+[U.]  #4  nixos-system-my-server  24.11.20250502.bf3287d -> 24.11.20250503.d768e16
+Closure size: 810 -> 810 (26 paths added, 26 paths removed, delta +0, disk usage -5.3KiB).
 ```
 
 ## Features
 
-- Update `flake.lock` with nicer commit messages (see above).
+- Update `flake.lock` with nice commits and metadata attached via Git Notes (see above).
 - Supports NixOS (`--os`) and Home Manager (`--home`) configs.
 - Integrated Git workflow (`--push`) for pulling, rebasing, and pushing changes.
 - NixOS module for scheduled upgrades similar to `system.autoUpgrade`.
 - Commit only when NixOS configuration changed (`--os-only-when-changed`).
 
 ## Usage
+
+### Repo Setup
+
+Because Git Notes is not enabled by default you first need to enable it for each repository to be able to pull and push. You can use this one-liner to set it up for the remote `origin`:
+``` bash
+remote=origin && git config --add remote.$remote.fetch 'refs/notes/*:refs/notes/*' && git config --add remote.$remote.push 'refs/heads/*:refs/heads/*' && git config --add remote.$remote.push 'refs/notes/*:refs/notes/*'
+```
+
+Notes can be inspected with, e.g., `git log --notes`.
+
+> [!IMPORTANT]
+> You need to enable Git Notes on the auto-updating (remote) repository as well.
 
 ### NixOS Module
 

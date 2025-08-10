@@ -83,6 +83,12 @@ fi
 
 cd "$FLAKE_DIR"
 
+# Assert that git notes is configured
+if ! grep -Fq 'refs/notes/' "$(git rev-parse --git-path config)"; then
+  echo "Error: git notes not configured for repository. Check the Readme." >&2
+  exit 1
+fi
+
 if $UPDATE_LOCK; then
   PREV_COMMIT_HASH=$(git rev-parse HEAD)
 
@@ -95,8 +101,33 @@ if $UPDATE_LOCK; then
   if [[ "$PREV_COMMIT_HASH" = "$LOCK_COMMIT_HASH" ]]; then
     echo "flake.lock did not change."
   else
-    # Remove the commit as we recreate it below
-    git reset --soft HEAD~1
+    # Build concise subject like: chore(<host>,os,home): update path/to/flake.lock
+    PREFIX=$(git rev-parse --show-prefix)
+    if [[ -n "$PREFIX" ]]; then
+      REL_PATH="${PREFIX%/}/flake.lock"
+    else
+      REL_PATH="flake.lock"
+    fi
+
+    labels=("$(hostname)")
+    if [ "$DO_OS" = true ]; then
+      labels+=("os")
+    fi
+    if [ "$DO_HOME" = true ]; then
+      labels+=("home")
+    fi
+
+    TITLE="chore($(
+      IFS=,
+      echo "${labels[*]}"
+    )): update ${REL_PATH}"
+
+    # Update title and author of the commit and only commit flake.lock changes.
+    echo "Amending git commit with generated author and title..."
+    git reset --soft "$PREV_COMMIT_HASH"
+    git add flake.lock
+    git commit --only flake.lock --author="$(hostname)[bot] <$(hostname)[bot]>" -m "$TITLE" -m "$LOCK_BODY"
+    LOCK_COMMIT_HASH="$(git rev-parse HEAD)"
   fi
 fi
 
@@ -130,26 +161,8 @@ function check_os_change() {
   fi
 }
 
+# Build diffs and create a git note with details (flake.lock body + closure diffs)
 if $UPDATE_LOCK && [[ "$PREV_COMMIT_HASH" != "$LOCK_COMMIT_HASH" ]]; then
-  PREFIX=$(git rev-parse --show-prefix)
-  if [[ -n "$PREFIX" ]]; then
-    REL_PATH="${PREFIX%/}/flake.lock"
-  else
-    REL_PATH="flake.lock"
-  fi
-
-  labels=("$(hostname)")
-  if [ "$DO_OS" = true ]; then
-    labels+=("os")
-  fi
-  if [ "$DO_HOME" = true ]; then
-    labels+=("home")
-  fi
-  TITLE="chore($(
-    IFS=,
-    echo "${labels[*]}"
-  )): update ${REL_PATH}"
-
   echo "Generating diffs..."
   if $DO_OS; then
     nvd diff "$OS_CURRENT" "$OS_NEW" >"$RESULT_DIR/os.diff"
@@ -162,32 +175,30 @@ if $UPDATE_LOCK && [[ "$PREV_COMMIT_HASH" != "$LOCK_COMMIT_HASH" ]]; then
   if $OS_ONLY_WHEN_CHANGED && $DO_OS && ! $DO_HOME && check_os_change "$RESULT_DIR/os.diff"; then
     echo "Skipping upgrade because NixOS configuration did not change... The diff:"
     cat "$RESULT_DIR/os.diff"
-    git checkout HEAD -- flake.lock
+    # Drop the previously created commit
+    git reset --soft "$PREV_COMMIT_HASH"
+    git restore --source="$PREV_COMMIT_HASH" --staged --worktree flake.lock
     exit 0
   fi
 
-  echo "Amending lock-update commit with configuration diffs..."
+  echo "Attaching metadata via git notes..."
   MSGFILE="$RESULT_DIR/msgfile"
   {
-    echo "$TITLE"
-    echo
-    echo "## Flake lock changes"
-    echo "$LOCK_BODY"
     if $DO_OS; then
-      echo
-      echo "## System closure diff"
+      echo "# System closure diff"
       cat "$RESULT_DIR/os.diff"
     fi
     if $DO_HOME; then
-      echo
-      echo "## Home-manager closure diff"
+      if ! $DO_OS; then
+        echo
+      fi
+      echo "# Home-manager closure diff"
       cat "$RESULT_DIR/home.diff"
     fi
   } >"$MSGFILE"
 
-  # Commit only the lock file update
-  git add flake.lock
-  git commit --author="$(hostname)[bot] <$(hostname)[bot]>" --only flake.lock --file "$MSGFILE"
+  # Attach (or replace) the note on the lock commit
+  git notes add -m "$(cat "$MSGFILE")" "$LOCK_COMMIT_HASH"
 fi
 
 if $DO_PUSH; then
