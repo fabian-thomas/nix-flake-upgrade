@@ -199,6 +199,9 @@ if $UPDATE_LOCK && [[ "$PREV_COMMIT_HASH" != "$LOCK_COMMIT_HASH" ]]; then
 
   # Attach (or replace) the note on the lock commit
   git notes add -m "$(cat "$MSGFILE")" "$LOCK_COMMIT_HASH"
+
+  # Merge the local note into the merged notes
+  git notes --ref=refs/notes/commits merge -v refs/notes/local/commits
 fi
 
 if $DO_PUSH; then
@@ -207,6 +210,11 @@ if $DO_PUSH; then
   success=0
   for i in $(seq 1 5); do
     git pull --rebase
+
+    # Merge the local notes into the merged (potentially new) notes,
+    # just in case there was a rebase
+    git notes --ref=refs/notes/commits merge -v refs/notes/local/commits
+
     if git push; then
       echo "Push succeeded."
       success=1

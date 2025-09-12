@@ -43,15 +43,31 @@ Closure size: 810 -> 810 (26 paths added, 26 paths removed, delta +0, disk usage
 
 ### Repo Setup
 
-Because Git Notes is not enabled by default you first need to enable it for each repository to be able to pull and push. You can use this one-liner to set it up for the remote `origin`:
+Because Git Notes is not correctly configured by default you first need to set it up in **every cloned repository**.
+You can use this one-liner to set it up for the remote `origin`:
 ``` bash
-remote=origin && git config --add remote.$remote.fetch 'refs/notes/*:refs/notes/*' && git config --add remote.$remote.push 'refs/heads/*:refs/heads/*' && git config --add remote.$remote.push 'refs/notes/*:refs/notes/*'
+remote=origin && git config core.notesRef 'refs/notes/local/commits' && git config notes.displayRef 'refs/notes/commits' && git config notes.mergeStrategy manual && git config notes.rewriteRef 'refs/notes/*' && git config --add remote.$remote.fetch "+refs/notes/commits:refs/notes/commits" && git config --add remote.$remote.push HEAD && git config --add remote.$remote.push 'refs/notes/commits:refs/notes/commits'
 ```
+
+This sets up `git` to track locally created notes in `refs/notes/local/commits`.
+This ensures that created notes are always backed up.
+Note that this is needed because Git Notes do not allow for clean fast-forwards.
+
+These local notes can be merged into the remote (merged) notes by running this command:
+``` sh
+git notes --ref=refs/notes/commits merge -v refs/notes/local/commits
+```
+Note that you need to run this command after creating a note or after rewriting commits, e.g., because of a `git pull --rebase`.
+The script takes care of that for the automated updates.
+
+`notes.rewriteRef 'refs/notes/*'` ensures that whenever any rewrite of the history occurs, e.g., because of a `git pull --rebase`, the notes are copied over to the "new" commits.
+The other options configure `git` to display the merged notes (`refs/notes/commits`), create new notes in `refs/notes/local/commits` and to push and pull notes by default.
 
 Notes can be inspected with, e.g., `git log --notes`.
 
 > [!IMPORTANT]
-> You need to enable Git Notes on the auto-updating (remote) repository as well.
+> You need to set this up on the auto-updating (remote machine) cloned repository as well.
+> The merge command needs to be run after creating a note or after commit rewriting, otherwise the notes are not pushed.
 
 ### NixOS Module
 
